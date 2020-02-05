@@ -1,0 +1,71 @@
+CREATE PROCEDURE SeidorArg_LinPagos(in DocKey int,in ObjectId int)
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER
+AS
+BEGIN	
+	
+	IF :ObjectId = 46 THEN	
+	    
+	SELECT
+			T0."DocEntry",
+			T0."ObjType", 
+			CASE WHEN T1."InvType" = 18 THEN T2."DocDate" 
+				 WHEN T1."InvType" = 46 THEN T3."TaxDate"
+			END AS "DocDate",	 
+			T2."DocDueDate",
+			CASE WHEN T1."InvType" = 18 THEN 'FC' 
+				 WHEN T1."InvType" = 46 THEN 'PE'
+				 WHEN T1."InvType" = 30 THEN 'AS'
+				 WHEN T1."InvType" = 19 THEN 'NC'
+			END AS "Tipo",
+			CASE WHEN T1."InvType" = 18 THEN 
+				COALESCE(T2."Letter" || '-' || RIGHT(CONCAT('0000',T2."PTICode"),4) ||' - '|| RIGHT(CONCAT('00000000',T2."FolNumFrom"),8),'-') 
+				 WHEN T1."InvType" = 46 THEN 'Pago a Cuenta' 
+			END AS "Conmprobante",
+			T2."DocCur",
+			T2."DocRate",
+			CASE WHEN T2."DocRate" = 0 THEN T2."DocTotal"   ELSE T2."DocTotalFC" END AS "DocTotal",
+			CASE WHEN T2."DocRate" = 0 THEN T1."SumApplied" ELSE T1."AppliedFC"  END AS "SumApplied",
+			CASE WHEN T2."DocRate" = 0 THEN (T2."DocTotal" - T2."PaidSum") 
+				ELSE (T2."DocTotalFC" - T2."PaidFC") 
+			END AS "ImportePendiente"
+		FROM OVPM T0
+		LEFT OUTER JOIN VPM2 T1 ON T0."DocEntry" = T1."DocNum"
+		LEFT OUTER JOIN OPCH T2 ON T1."DocEntry" = T2."DocEntry" AND T1."InvType" = '18'
+		LEFT OUTER JOIN OJDT T3 ON T1."DocEntry" = T3."TransId"
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+		
+	ELSEIF :ObjectId = 24 THEN
+	
+	SELECT
+			T0."DocEntry",
+			T0."ObjType", 
+			CASE WHEN T1."InvType" = 13 THEN T2."DocDate" 
+				 WHEN T1."InvType" = 24 THEN T3."TaxDate"
+			END AS "DocDate",	 
+			T2."DocDueDate",
+			CASE WHEN T1."InvType" = 13 THEN 'FC' 
+				 WHEN T1."InvType" = 24 THEN 'PE'
+				 WHEN T1."InvType" = 30 THEN 'AS'
+				 WHEN T1."InvType" = 14 THEN 'NC'
+			END AS "Tipo",
+			CASE WHEN T1."InvType" = 13 THEN 
+				COALESCE(T2."Letter" || '-' || RIGHT(CONCAT('0000',T2."PTICode"),4) ||' - '|| RIGHT(CONCAT('00000000',T2."FolNumFrom"),8),'-') 
+				 WHEN T1."InvType" = 24 THEN 'Pago a Cuenta' 
+			END AS "Conmprobante",
+			T2."DocCur",
+			T2."DocRate",
+			CASE WHEN T2."DocRate" = 0 THEN T2."DocTotal"   ELSE T2."DocTotalFC" END AS "DocTotal",
+			CASE WHEN T2."DocRate" = 0 THEN T1."SumApplied" ELSE T1."AppliedFC"  END AS "SumApplied",
+			CASE WHEN T2."DocRate" = 0 THEN (T2."DocTotal" - T2."PaidSum") 
+				ELSE (T2."DocTotalFC" - T2."PaidFC") 
+			END AS "ImportePendiente"
+		FROM ORCT T0
+		LEFT OUTER JOIN RCT2 T1 ON T0."DocEntry" = T1."DocNum"
+		LEFT OUTER JOIN OINV T2 ON T1."DocEntry" = T2."DocEntry" AND T1."InvType" = '13'
+		LEFT OUTER JOIN OJDT T3 ON T1."DocEntry" = T3."TransId"
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+		
+	END IF;
+	
+END;

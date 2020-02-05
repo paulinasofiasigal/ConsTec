@@ -1,0 +1,19 @@
+CREATE PROCEDURE SeidorArg_CabReporte ()
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER
+AS
+
+BEGIN
+	
+	SELECT 
+	"OADM"."CompnyName", "OADM"."CompnyAddr", "ADM1"."U_B1SYS_VATCtg", "OADM"."Phone1", "OADM"."Phone2", 
+	"OADM"."E_Mail", "ADM1"."Street", "ADM1"."ZipCode", "ADM1"."City", "OCRY"."Name", 
+	"ADM1"."IntrntAdrs", "OADP"."LogoImage",
+	"OADM"."FreeZoneNo",
+	"ADM1"."U_B1SYS_GrsIncId", "OADM"."TaxIdNum"
+	FROM "OADM" "OADM" 
+	INNER JOIN "ADM1" "ADM1" ON "OADM"."Code"="ADM1"."Code"
+	INNER JOIN "OCRY" "OCRY" ON "ADM1"."Country"="OCRY"."Code"
+	INNER JOIN "OADP" "OADP" ON 1 = 1;
+
+END;

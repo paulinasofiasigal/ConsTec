@@ -1,0 +1,632 @@
+CREATE PROCEDURE SeidorArg_ImpuFC (in DocKey int,in ObjectId int)
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER
+AS
+BEGIN
+	
+	IF :ObjectId = 13 THEN
+	
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+	SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+			 			
+		
+		FROM OINV T0
+		INNER JOIN INV1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN INV4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		WHERE T0."Letter" <> 'B'
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+		UNION ALL
+		
+		SELECT 
+			1 AS "Indicador",
+			T0."DocEntry", 
+			T0."ObjType",
+			T0."DocNum", T3."WTCode", T3."WTName", T2."Rate", 
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+					WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+					WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+					ELSE T0."DocCur" END AS "DocCur",
+					SUM(T2."BaseNetSum" / CASE WHEN T0."DocRate" = 0 THEN
+									1 
+								WHEN T0."DocRate" > 0 THEN
+									T0."DocRate"
+								ELSE 
+									COALESCE(T9."Rate",1) 
+								END) AS "LineTotal",
+			CASE WHEN (T0."CurSource" = 'L') THEN SUM(T2."WTaxSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T2."WTaxSumFc")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T2."WTaxSumSc") END AS "WTaxSum"	
+		FROM OINV T0
+		INNER JOIN OWTX T1 ON T0."DocEntry"  = T1."SrcObjAbs" AND T0."ObjType" = T1."SrcObjType"
+		INNER JOIN WTX1 T2 ON T1."AbsEntry"  = T2."AbsEntry"
+		INNER JOIN OWTD T3 ON T2."WTaxAbsId" = T3."AbsEntry"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY  T0."DocEntry", T0."DocNum", T0."ObjType", T3."WTCode", T3."WTName", T2."Rate",
+				  T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		HAVING SUM(T2."WTaxSum" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE T0."DocRate" END) > 0
+		
+		) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";
+	
+	ELSEIF :ObjectId=14 THEN 
+		
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		FROM ORIN T0
+		INNER JOIN RIN1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN RIN4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		WHERE T0."Letter" <> 'B'
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+		UNION ALL
+		
+		select
+		
+		1 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T3."WTCode", T3."WTName", T2."Rate", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "DocCur",
+				SUM(T2."BaseNetSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T2."WTaxSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T2."WTaxSumFc")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T2."WTaxSumSc") END AS "WTaxSum"	
+		FROM ORIN T0
+		INNER JOIN OWTX T1 ON T0."DocEntry"  = T1."SrcObjAbs" AND T0."ObjType" = T1."SrcObjType"
+		INNER JOIN WTX1 T2 ON T1."AbsEntry"  = T2."AbsEntry"
+		INNER JOIN OWTD T3 ON T2."WTaxAbsId" = T3."AbsEntry"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY  T0."DocEntry", T0."DocNum", T0."ObjType", T3."WTCode", T3."WTName", T2."Rate",
+				  T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		HAVING SUM(T2."WTaxSum" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE T0."DocRate" END) > 0
+		
+		) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";
+	
+	ELSEIF :ObjectId = 15 THEN
+	
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		FROM ODLN T0
+		INNER JOIN DLN1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN DLN4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		WHERE T0."Letter" <> 'B'
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+		UNION ALL
+		
+		SELECT 
+		1 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T3."WTCode", T3."WTName", T2."Rate", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "DocCur",
+				SUM(T2."BaseNetSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T2."WTaxSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T2."WTaxSumFc")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T2."WTaxSumSc") END AS "WTaxSum"	
+		FROM ODLN T0
+		INNER JOIN OWTX T1 ON T0."DocEntry"  = T1."SrcObjAbs" AND T0."ObjType" = T1."SrcObjType"
+		INNER JOIN WTX1 T2 ON T1."AbsEntry"  = T2."AbsEntry"
+		INNER JOIN OWTD T3 ON T2."WTaxAbsId" = T3."AbsEntry"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY  T0."DocEntry", T0."DocNum", T0."ObjType", T3."WTCode", T3."WTName", T2."Rate",
+				  T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		HAVING SUM(T2."WTaxSum" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE T0."DocRate" END) > 0	
+		) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";
+
+
+ELSEIF :ObjectId = 17 THEN
+	
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		FROM ORDR T0
+		INNER JOIN RDR1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN RDR4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+		UNION ALL
+		
+		SELECT 
+		1 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T3."WTCode", T3."WTName", T2."Rate", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "DocCur",
+				SUM(T2."BaseNetSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T2."WTaxSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T2."WTaxSumFc")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T2."WTaxSumSc") END AS "WTaxSum"	
+
+		FROM ORDR T0
+		INNER JOIN OWTX T1 ON T0."DocEntry"  = T1."SrcObjAbs" AND T0."ObjType" = T1."SrcObjType"
+		INNER JOIN WTX1 T2 ON T1."AbsEntry"  = T2."AbsEntry"
+		INNER JOIN OWTD T3 ON T2."WTaxAbsId" = T3."AbsEntry"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY  T0."DocEntry", T0."DocNum", T0."ObjType", T3."WTCode", T3."WTName", T2."Rate",
+				  T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		HAVING SUM(T2."WTaxSum" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE T0."DocRate" END) > 0	
+		) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";
+
+	ELSEIF :ObjectId = 22 THEN
+			
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		FROM OPOR T0
+		INNER JOIN POR1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN POR4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+		UNION ALL
+		
+		SELECT 
+		1 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T3."WTCode", T3."WTName", T2."Rate", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "DocCur",
+				SUM(T2."BaseNetSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+	CASE WHEN (T0."CurSource" = 'L') THEN SUM(T2."WTaxSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T2."WTaxSumFc")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T2."WTaxSumSc") END AS "WTaxSum"	
+		FROM OPOR T0
+		INNER JOIN OWTX T1 ON T0."DocEntry"  = T1."SrcObjAbs" AND T0."ObjType" = T1."SrcObjType"
+		INNER JOIN WTX1 T2 ON T1."AbsEntry"  = T2."AbsEntry"
+		INNER JOIN OWTD T3 ON T2."WTaxAbsId" = T3."AbsEntry"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY  T0."DocEntry", T0."DocNum", T0."ObjType", T3."WTCode", T3."WTName", T2."Rate",
+				  T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		HAVING SUM(T2."WTaxSum" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE T0."DocRate" END) > 0	
+		) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";
+	
+	ELSEIF :ObjectId = 23 THEN
+			
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		FROM OQUT T0
+		INNER JOIN QUT1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN QUT4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		WHERE T0."Letter" <> 'B'
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+		UNION ALL
+		
+		SELECT 
+		1 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T3."WTCode", T3."WTName", T2."Rate", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "DocCur",
+				SUM(T2."BaseNetSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+	CASE WHEN (T0."CurSource" = 'L') THEN SUM(T2."WTaxSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T2."WTaxSumFc")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T2."WTaxSumSc") END AS "WTaxSum"	
+		FROM OQUT T0
+		INNER JOIN OWTX T1 ON T0."DocEntry"  = T1."SrcObjAbs" AND T0."ObjType" = T1."SrcObjType"
+		INNER JOIN WTX1 T2 ON T1."AbsEntry"  = T2."AbsEntry"
+		INNER JOIN OWTD T3 ON T2."WTaxAbsId" = T3."AbsEntry"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		GROUP BY  T0."DocEntry", T0."DocNum", T0."ObjType", T3."WTCode", T3."WTName", T2."Rate",
+				  T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		HAVING SUM(T2."WTaxSum" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE T0."DocRate" END) > 0	
+		) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";
+		
+		
+ELSEIF :ObjectId = 1470000113 THEN
+			
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		
+		FROM OPRQ T0
+		INNER JOIN PRQ1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN PRQ4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		--WHERE T0."Letter" <> 'B'
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+	) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";	
+		
+		
+		
+ELSEIF :ObjectId = 540000006 THEN
+			
+		SELECT 
+		IMPUESTOS."Indicador",
+		IMPUESTOS."ObjType",
+		IMPUESTOS."DocEntry",
+		IMPUESTOS."DocNum",
+		IMPUESTOS."TaxCode",
+		IMPUESTOS."Name",
+		IMPUESTOS."DocCur",
+		IMPUESTOS."VatPrcnt",
+		IMPUESTOS."WTaxSum",
+		IMPUESTOS."LineTotal"
+		FROM (
+		--Detalle IVA
+		SELECT 
+		0 AS "Indicador",
+		T0."DocEntry", 
+		T0."ObjType",
+		T0."DocNum", T1."TaxCode", T2."Name", T1."VatPrcnt", 
+		CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+			 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+			 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+			ELSE T0."DocCur" END AS "DocCur",	
+		SUM(T3."BaseSum" / CASE WHEN T0."DocRate" = 0 THEN
+								1 
+							WHEN T0."DocRate" > 0 THEN
+								T0."DocRate"
+							ELSE 
+								COALESCE(T9."Rate",1) 
+							END) AS "LineTotal",
+		CASE WHEN (T0."CurSource" = 'L') THEN SUM(T1."VatSum")
+			 WHEN (T0."CurSource" = 'S') THEN SUM(T1."VatSumSy")
+			 WHEN (T0."CurSource" = 'C') THEN SUM(T1."VatSumFrgn")
+			 			ELSE T0."DocCur" END AS "WTaxSum"	
+		
+		FROM OPQT T0
+		INNER JOIN PQT1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN OSTC T2 ON T1."TaxCode" = T2."Code"
+		INNER JOIN PQT4 T3 ON T1."DocEntry" = T3."DocEntry" AND T1."LineNum" = T3."LineNum"
+		INNER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		--WHERE T0."Letter" <> 'B'
+		GROUP BY T0."DocEntry", T0."DocNum", T0."ObjType", T1."TaxCode",T2."Name", T1."VatPrcnt",
+				 T0."DocCur", T0."CurSource", T8."MainCurncy", T8."SysCurrncy"
+		
+	) AS IMPUESTOS
+		WHERE IMPUESTOS."DocEntry" = :DocKey AND IMPUESTOS."ObjType" = :ObjectId
+		ORDER BY IMPUESTOS."DocEntry";				
+	END IF;	
+
+END;

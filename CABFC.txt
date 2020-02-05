@@ -1,0 +1,518 @@
+CREATE PROCEDURE SeidorArg_CabFC(in DocKey int,in ObjectId int)
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER
+AS
+BEGIN	
+	
+	IF :ObjectId = 13 THEN	
+----------------------FACTURA / NOTA DE DEBITO-----------------------------------	
+					SELECT 
+			CAST(RIGHT(CONCAT('0000',T0."PTICode"),4) || '-' || RIGHT(CONCAT('00000000',T0."FolNumFrom"),8)AS NVARCHAR(14)) AS "NroComprobante", 	
+			T6."Descr" AS "SituacionIVA", 
+			T2."PymntGroup",
+			cast(CASE WHEN T0."DocSubType" = 'DN' AND T5."Name" = 'eDoc Format FCE' 			   THEN 'Nota de Debito Electronica MiPyme    ' 
+					  WHEN T0."DocSubType" = 'DN' AND COALESCE(T5."Name",'') <> 'eDoc Format FCE'  THEN 'Nota de Debito                       '
+					  WHEN T0."DocSubType" <> 'DN' AND COALESCE(T5."Name",'') = 'eDoc Format FCE'  THEN 'Factura de Credito Electronica MiPyme'
+					  WHEN T0."DocSubType" <> 'DN' AND COALESCE(T5."Name",'') <> 'eDoc Format FCE' THEN 'Factura                              ' 
+				END as VARCHAR(100)) AS "Tipo",			
+			CASE WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'A' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '01'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'A' AND COALESCE(T5."Name",' ')  = 'eDoc Format FCE' THEN '201'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'B' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '06'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'B' AND COALESCE(T5."Name",' ')  = 'eDoc Format FCE' THEN '206'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'C' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '11'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'E' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '19'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" <> 'DN' AND T0."Letter" = 'M' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '51'
+			-----------------------------------------------
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'A' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '02'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'A' AND COALESCE(T5."Name",' ')  = 'eDoc Format FCE' THEN '202'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'B' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '07'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'B' AND COALESCE(T5."Name",' ')  = 'eDoc Format FCE' THEN '207'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'C' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '12'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'E' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '20'
+			 	 WHEN T0."ObjType" = 13 AND T0."DocSubType" = 'DN' AND T0."Letter" = 'M' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '52'
+		-----------------------------------------------	
+			END AS "CodAfip",			
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+			T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",
+			CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			T1."HouseBank",
+			T1."HsBnkIBAN",
+			T1."HsBnkSwift",
+			T0.*
+		FROM OINV T0
+		INNER JOIN OCRD T1 ON T0."CardCode" = T1."CardCode" AND T1."CardType" = 'C'
+		LEFT OUTER JOIN OCTG T2 ON T1."GroupNum" = T2."GroupNum"
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		--LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+		--				join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+		--				WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+		--				AND "LogType" = 'R'	
+		--				GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+		--				AND ECM3."LogNum" = TT1."LogNum" ))T4 
+		--				ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+		--				AND COALESCE(T4."LogOpDate",'0')<>'0'
+		LEFT OUTER JOIN ECM3 T4 ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R'AND T4."LogOpDate" IS NOT NULL 	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT JOIN (SELECT T0."FldValue", T0."Descr" FROM "UFD1" as T0 join "CUFD" as T1 on(T0."TableID" = T1."TableID" and T0."FieldID" = T1."FieldID")
+					WHERE "AliasID" = 'B1SYS_VATCtg'AND T0."TableID" = 'OCRD' ) T6 ON(T6."FldValue" = T1."U_B1SYS_VATCtg")
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+
+	ELSEIF :ObjectId=14 THEN 	
+	----------------------NOTA DE CREDITO-----------------------------------
+			SELECT 
+			LPAD(T0."PTICode",5,'0')|| '-' || LPAD(T0."FolNumFrom",8,'0') AS "NroComprobante", 	
+			T6."Descr" AS "SituacionIVA", 
+			T2."PymntGroup",
+			cast(CASE WHEN T5."Name" = 'eDoc Format FCE' THEN 'Nota de Credito Electronica MiPyme ' 
+					  WHEN COALESCE(T5."Name",'') <> 'eDoc Format FCE' THEN 'Nota de Credito'
+				 END as VARCHAR(100)) AS "Tipo",			
+			CASE WHEN T0."ObjType" = 14 AND T0."Letter" = 'A' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '03'
+					 WHEN T0."ObjType" = 14 AND T0."Letter" = 'A' AND COALESCE(T5."Name",' ') = 'eDoc Format FCE' THEN '203'
+					 WHEN T0."ObjType" = 14 AND T0."Letter" = 'B' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE'  THEN '08'
+					 WHEN T0."ObjType" = 14 AND T0."Letter" = 'B' AND T5."Name" = 'eDoc Format FCE' THEN '208'
+					 WHEN T0."ObjType" = 14 AND T0."Letter" = 'C' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '13'
+					 WHEN T0."ObjType" = 14 AND T0."Letter" = 'E' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '21'
+					 WHEN T0."ObjType" = 14 AND T0."Letter" = 'M' AND COALESCE(T5."Name",' ') <> 'eDoc Format FCE' THEN '53'
+				END AS "CodAfip",	
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+			T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE COALESCE(T9."Rate",1) END	AS "ImporteComprobante",
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1 ELSE COALESCE(T9."Rate",1) END) AS "ImporteLetras",
+			CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			T1."HouseBank",
+			T1."HsBnkIBAN",
+			T1."HsBnkSwift",
+			T0.*
+		FROM ORIN T0
+		INNER JOIN OCRD T1 ON T0."CardCode" = T1."CardCode" AND T1."CardType" = 'C'
+		LEFT OUTER JOIN OCTG T2 ON T1."GroupNum" = T2."GroupNum"
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT JOIN (SELECT T0."FldValue", T0."Descr" FROM "UFD1" as T0 join "CUFD" as T1 on(T0."TableID" = T1."TableID" and T0."FieldID" = T1."FieldID")
+					WHERE "AliasID" = 'B1SYS_VATCtg'AND T0."TableID" = 'OCRD' ) T6 ON(T6."FldValue" = T1."U_B1SYS_VATCtg")
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+
+	ELSEIF :ObjectId = 15 THEN 
+	----------------------REMITO-----------------------------------
+			SELECT 
+			LPAD(T0."PTICode",5,'0')|| '-' || LPAD(T0."FolNumFrom",8,'0') AS "NroComprobante", 	
+			T6."Descr" AS "SituacionIVA", 
+			T2."PymntGroup",
+			Cast('Remito' as VARCHAR(100)) "Tipo",	
+			'91' AS "CodAfip",			
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+				T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",	CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			T1."HouseBank",
+			T1."HsBnkIBAN",
+			T1."HsBnkSwift",
+			T0.*
+		FROM ODLN T0
+		INNER JOIN OCRD T1 ON T0."CardCode" = T1."CardCode" AND T1."CardType" = 'C'
+		LEFT OUTER JOIN OCTG T2 ON T1."GroupNum" = T2."GroupNum"
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT JOIN (SELECT T0."FldValue", T0."Descr" FROM "UFD1" as T0 join "CUFD" as T1 on(T0."TableID" = T1."TableID" and T0."FieldID" = T1."FieldID")
+					WHERE "AliasID" = 'B1SYS_VATCtg'AND T0."TableID" = 'OCRD' ) T6 ON(T6."FldValue" = T1."U_B1SYS_VATCtg")
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+	
+		ELSEIF :ObjectId = 17 THEN 
+	----------------------ORDEN DE VENTA -----------------------------------
+			SELECT 
+			LPAD(0,5,'0')|| '-' || LPAD(T0."DocNum",8,'0') AS "NroComprobante", 	
+			T6."Descr" AS "SituacionIVA", 
+			T2."PymntGroup",
+			Cast('Orden de Venta' as VARCHAR(100)) "Tipo",	
+			'' AS "CodAfip",			
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+				T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			T1."HouseBank",
+			T1."HsBnkIBAN",
+			T1."HsBnkSwift",
+			T0.*
+		FROM ORDR T0
+		INNER JOIN OCRD T1 ON T0."CardCode" = T1."CardCode" AND T1."CardType" = 'C'
+		LEFT OUTER JOIN OCTG T2 ON T1."GroupNum" = T2."GroupNum"
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT JOIN (SELECT T0."FldValue", T0."Descr" FROM "UFD1" as T0 join "CUFD" as T1 on(T0."TableID" = T1."TableID" and T0."FieldID" = T1."FieldID")
+					WHERE "AliasID" = 'B1SYS_VATCtg'AND T0."TableID" = 'OCRD' ) T6 ON(T6."FldValue" = T1."U_B1SYS_VATCtg")
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+			
+			
+	ELSEIF :ObjectId=22 THEN 
+----------------------PEDIDO-----------------------------------
+			SELECT 
+			LPAD(T0."DocNum",8,'0') AS "NroComprobante", 	
+			T6."Descr" AS "SituacionIVA", 
+			T2."PymntGroup",
+			Cast('Orden de Compra' as VARCHAR(100))"Tipo",	
+			'   ' AS "CodAfip",		
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+				T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			T1."HouseBank",
+			T1."HsBnkIBAN",
+			T1."HsBnkSwift",
+			T0.*
+		FROM OPOR T0
+		INNER JOIN OCRD T1 ON T0."CardCode" = T1."CardCode" AND T1."CardType" = 'S'
+		LEFT OUTER JOIN OCTG T2 ON T1."GroupNum" = T2."GroupNum"
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT JOIN (SELECT T0."FldValue", T0."Descr" FROM "UFD1" as T0 join "CUFD" as T1 on(T0."TableID" = T1."TableID" and T0."FieldID" = T1."FieldID")
+					WHERE "AliasID" = 'B1SYS_VATCtg'AND T0."TableID" = 'OCRD' ) T6 ON(T6."FldValue" = T1."U_B1SYS_VATCtg")
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+	
+		
+	ELSEIF :ObjectId=23 THEN 
+----------------------Oferta de Venta -----------------------------------	
+			SELECT 
+			LPAD(T0."DocNum",8,'0') AS "NroComprobante", 	
+			T6."Descr" AS "SituacionIVA", 
+			T2."PymntGroup",
+			CAST('Oferta de Venta' as VARCHAR(100)) "Tipo",	
+			' ' AS "CodAfip",				
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+				T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",
+				 CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			T1."HouseBank",
+			T1."HsBnkIBAN",
+			T1."HsBnkSwift",
+			T0.*
+		FROM OQUT T0
+		INNER JOIN OCRD T1 ON T0."CardCode" = T1."CardCode" AND T1."CardType" = 'C'
+		LEFT OUTER JOIN OCTG T2 ON T1."GroupNum" = T2."GroupNum"
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT JOIN (SELECT T0."FldValue", T0."Descr" FROM "UFD1" as T0 join "CUFD" as T1 on(T0."TableID" = T1."TableID" and T0."FieldID" = T1."FieldID")
+					WHERE "AliasID" = 'B1SYS_VATCtg'AND T0."TableID" = 'OCRD' ) T6 ON(T6."FldValue" = T1."U_B1SYS_VATCtg")
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+		
+	ELSEIF :ObjectId= 1470000113 THEN 
+----------------------Solicitud de Compra -----------------------------------	
+		SELECT 
+			LPAD(T0."DocNum",8,'0') AS "NroComprobante", 	
+			'' AS "SituacionIVA", 
+			'' AS "PymntGroup",
+			CAST('Solicitud de Compra' as VARCHAR(100)) "Tipo",	
+			' ' AS "CodAfip",				
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+				T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",
+				 CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			'' "HouseBank",
+			'' "HsBnkIBAN",
+			'' "HsBnkSwift",
+			T0.*
+			
+
+		FROM OPRQ T0
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;	
+		
+	
+ELSEIF :ObjectId= 540000006 THEN 
+----------------------Oferta de Compra -----------------------------------	
+		SELECT 
+			LPAD(T0."DocNum",8,'0') AS "NroComprobante", 	
+			'' AS "SituacionIVA", 
+			'' AS "PymntGroup",
+			CAST('Oferta de Compra' as VARCHAR(100)) "Tipo",	
+			' ' AS "CodAfip",				
+			T10."CurrName" As "MonedaLetra",
+			COALESCE(T9."Rate",1) AS "Rate",
+			T0."CurSource",
+			CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+				ELSE T0."DocCur" END AS "MonedaComprobante",
+	T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				END	AS "ImporteComprobante",
+				
+			SEIGETNUMEROENLETRAS(T0."DocTotal" / CASE WHEN T0."DocRate" = 0 THEN 1
+								When T0."DocRate" <> 0 Then T0."DocRate"
+								 ELSE COALESCE(T9."Rate",1)
+				 END) AS "ImporteLetras",			
+CASE WHEN T0."Printed" = 'Y' THEN 'Copia'
+				 WHEN T0."Printed" = 'N' THEN 'Original'
+				 WHEN T0."Printed" = 'N' THEN 'Enmendado'
+				ELSE '-' 
+			END AS "Copia",
+			COALESCE(T3."ReportID",'0') AS "ReportID",
+			T4."LogOpDate" ,
+			'' "HouseBank",
+			'' "HsBnkIBAN",
+			'' "HsBnkSwift",
+			T0.*
+			
+
+		FROM OPQT T0
+		LEFT OUTER JOIN ECM2 T3 ON T0."DocEntry" = T3."SrcObjAbs" AND T0."ObjType" = T3."SrcObjType" 
+		LEFT OUTER JOIN (SELECT ECM3.* FROM ECM3
+						join (select "AbsEntry", Max("LogNum") as "LogNum" from ECM3
+						WHERE COALESCE(Cast("LogMessage" as VARCHAR),'') = 'ok'
+						AND "LogType" = 'R'	
+						GROUP BY "AbsEntry") AS TT1 on (ECM3."AbsEntry" = TT1."AbsEntry" 
+						AND ECM3."LogNum" = TT1."LogNum" ))T4 
+						ON T3."AbsEntry" = T4."AbsEntry" AND T4."LogType" = 'R' 
+						AND COALESCE(T4."LogOpDate",'0')<>'0'	
+		LEFT OUTER JOIN OLLF T5 ON T0."EDocExpFrm" = T5."AbsEntry"
+		LEFT OUTER JOIN OADM T8 ON 1 = 1
+		LEFT OUTER JOIN ORTT T9 ON T0."DocDate" = T9."RateDate" AND (CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 														  WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 														  WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+																			ELSE T0."DocCur" END) = T9."Currency"
+		LEFT JOIN OCRN T10 ON T10."CurrCode" = CASE WHEN (T0."CurSource" = 'L') THEN T8."MainCurncy"
+				 									WHEN (T0."CurSource" = 'S') THEN T8."SysCurrncy"
+				 									WHEN (T0."CurSource" = 'C') THEN T0."DocCur"
+												ELSE T0."DocCur" END
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;	
+			
+	
+	
+		
+	END IF;	
+END;

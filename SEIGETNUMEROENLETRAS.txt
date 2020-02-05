@@ -1,0 +1,89 @@
+CREATE FUNCTION "SEIGETNUMEROENLETRAS" (Numero decimal(20, 6))
+RETURNS ImporteLetras NVARCHAR(2000)
+LANGUAGE SQLSCRIPT READS SQL DATA AS
+
+lcRetorno nvarchar(512);
+lnTerna integer;
+lcMiles nvarchar(512);
+lcCadena nvarchar(8000);
+lcCadenamin nvarchar(512);
+lnUnidades integer;
+lnDecenas integer;
+lnCentenas integer;
+lnFraccion integer;
+lnEntero integer;
+BEGIN 
+SELECT ABS(:Numero) INTO Numero FROM DUMMY;
+IF (:Numero > 1000000000) THEN ImporteLetras := '';
+END IF;
+SELECT CAST(:Numero AS integer) INTO lnEntero FROM DUMMY;
+Select (:Numero - :lnEntero) * 100 INTO lnFraccion FROM DUMMY;
+Select '' into lcRetorno from DUMMY;
+Select 1 into lnTerna FROM DUMMY;
+
+WHILE :lnEntero > 0 DO SELECT '' INTO lcCadena FROM DUMMY;
+SELECT '' INTO lcCadenamin FROM DUMMY;
+SELECT MOD(:lnEntero, 10) INTO lnUnidades FROM DUMMY;
+SELECT CAST(:lnEntero / 10 AS integer) INTO lnEntero FROM DUMMY;
+SELECT MOD(:lnEntero, 10) INTO lnDecenas FROM DUMMY;
+SELECT CAST(:lnEntero / 10 AS integer) INTO lnEntero FROM DUMMY;
+SELECT MOD(:lnEntero, 10) INTO lnCentenas FROM DUMMY;
+SELECT CAST(:lnEntero / 10 AS integer) INTO lnEntero FROM DUMMY;
+-- Unidades 
+SELECT CASE WHEN :lnUnidades = 1 AND :lnTerna = 1 THEN 'Uno ' || :lcCadena 
+                                               WHEN :lnUnidades = 1 AND :lnTerna <> 1 THEN 'Un ' || :lcCadena 
+                                               WHEN :lnUnidades = 2 THEN 'Dos ' || :lcCadena 
+                                               WHEN :lnUnidades = 3 THEN 'Tres ' || :lcCadena 
+                                               WHEN :lnUnidades = 4 THEN 'Cuatro ' || :lcCadena 
+                                               WHEN :lnUnidades = 5 THEN 'Cinco ' || :lcCadena 
+                                               WHEN :lnUnidades = 6 THEN 'Seis ' || :lcCadena 
+                                               WHEN :lnUnidades = 7 THEN 'Siete ' || :lcCadena 
+                                               WHEN :lnUnidades = 8 THEN 'Ocho ' || :lcCadena 
+                                               WHEN :lnUnidades = 9 THEN 'Nueve ' || :lcCadena 
+                                               ELSE :lcCadena END 
+INTO lcCadena FROM DUMMY;
+-- Unidades Minuscula 
+SELECT CASE WHEN :lnUnidades = 1 AND :lnTerna = 1 THEN 'uno ' || :lcCadenamin WHEN :lnUnidades = 1 AND :lnTerna <> 1 THEN 'un ' || :lcCadenamin WHEN :lnUnidades = 2 THEN 'dos ' || :lcCadenamin WHEN :lnUnidades = 3 THEN 'tres ' || :lcCadenamin WHEN :lnUnidades = 4 THEN 'cuatro ' || :lcCadenamin WHEN :lnUnidades = 5 THEN 'cinco ' || :lcCadenamin WHEN :lnUnidades = 6 THEN 'seis ' || :lcCadenamin WHEN :lnUnidades = 7 THEN 'siete ' || :lcCadenamin WHEN :lnUnidades = 8 THEN 'ocho ' || :lcCadenamin WHEN :lnUnidades = 9 THEN 'nueve ' || :lcCadenamin ELSE :lcCadenamin END INTO lcCadenamin FROM DUMMY;
+-- decenas 
+SELECT 
+CASE WHEN :lnDecenas = 1 
+                 THEN CASE :lnUnidades WHEN 0 THEN 'Diez ' 
+                                                                                                  WHEN 1 THEN 'Once ' 
+                                                                                                  WHEN 2 THEN 'Doce ' 
+                                                                                                  WHEN 3 THEN 'Trece ' 
+                                                                                                  WHEN 4 THEN 'Catorce ' 
+                                                                                                  WHEN 5 THEN 'Quince ' 
+                                                                                                  ELSE 'Dieci' || :lcCadenamin 
+                                                                                                  END 
+                 WHEN :lnDecenas = 2 AND :lnUnidades = 0 THEN 'Veinte ' || :lcCadenamin 
+                 WHEN :lnDecenas = 2 AND :lnUnidades <> 0 THEN 'Veinti' || :lcCadenamin 
+                 WHEN :lnDecenas = 3 AND :lnUnidades = 0 THEN 'Treinta ' || :lcCadenamin 
+                 WHEN :lnDecenas = 3 AND :lnUnidades <> 0 THEN 'Treinta y ' || :lcCadena 
+                 WHEN :lnDecenas = 4 AND :lnUnidades = 0 THEN 'Cuarenta ' || :lcCadenamin 
+                 WHEN :lnDecenas = 4 AND :lnUnidades <> 0 THEN 'Cuarenta y ' || :lcCadena 
+                 WHEN :lnDecenas = 5 AND :lnUnidades = 0 THEN 'Cincuenta ' || :lcCadenamin 
+                 WHEN :lnDecenas = 5 AND :lnUnidades <> 0 THEN 'Cincuenta y ' || :lcCadena 
+                 WHEN :lnDecenas = 6 AND :lnUnidades = 0 THEN 'Sesenta ' || :lcCadenamin 
+                 WHEN :lnDecenas = 6 AND :lnUnidades <> 0 THEN 'Sesenta y ' || :lcCadena 
+                 WHEN :lnDecenas = 7 AND :lnUnidades = 0 THEN 'Setenta ' || :lcCadenamin 
+                 WHEN :lnDecenas = 7 AND :lnUnidades <> 0 THEN 'Setenta Y ' || :lcCadena 
+                 WHEN :lnDecenas = 8 AND :lnUnidades = 0 THEN 'Ochenta ' || :lcCadenamin 
+                 WHEN :lnDecenas = 8 AND :lnUnidades <> 0 THEN 'Ochenta y ' || :lcCadena 
+                 WHEN :lnDecenas = 9 AND :lnUnidades = 0 THEN 'Noventa ' || :lcCadenamin 
+                 WHEN :lnDecenas = 9 AND :lnUnidades <> 0 THEN 'Noventa y ' || :lcCadena 
+ELSE :lcCadena 
+END 
+INTO lcCadena FROM DUMMY;
+-- centenas 
+SELECT CASE WHEN :lnCentenas = 1 AND :lnUnidades = 0 AND :lnDecenas = 0 THEN 'Cien ' || :lcCadena WHEN :lnCentenas = 1 AND NOT (:lnUnidades = 0 AND :lnDecenas = 0) THEN 'Ciento ' || :lcCadena WHEN :lnCentenas = 2 THEN 'Doscientos ' || :lcCadena WHEN :lnCentenas = 3 THEN 'Trescientos ' || :lcCadena WHEN :lnCentenas = 4 THEN 'Cuatrocientos ' || :lcCadena WHEN :lnCentenas = 5 THEN 'Quinientos ' || :lcCadena WHEN :lnCentenas = 6 THEN 'Seiscientos ' || :lcCadena WHEN :lnCentenas = 7 THEN 'Setecientos ' || :lcCadena WHEN :lnCentenas = 8 THEN 'Ochocientos ' || :lcCadena WHEN :lnCentenas = 9 THEN 'Novecientos ' || :lcCadena ELSE :lcCadena END INTO lcCadena FROM DUMMY;
+--Terna 
+SELECT CASE WHEN :lnTerna = 1 THEN :lcCadena WHEN :lnTerna = 2 AND (:lnUnidades + :lnDecenas + :lnCentenas <> 0) THEN :lcCadena || 'Mil ' WHEN :lnTerna = 3 AND (:lnUnidades + :lnDecenas + :lnCentenas <> 0) AND :lnUnidades = 1 AND :lnDecenas = 0 AND :lnCentenas = 0 THEN CASE WHEN :Numero <= 999999999 THEN :lcCadena || 'Millon ' ELSE :lcCadena || 'Millones ' END WHEN :lnTerna = 3 AND NOT (:lnUnidades = 1 AND :lnDecenas = 0 AND :lnCentenas = 0) THEN :lcCadena || 'Millones ' WHEN :lnTerna = 4 AND (:lnUnidades + :lnDecenas + :lnCentenas <> 0) THEN :lcCadena || 'Mil ' ELSE '' END INTO lcCadena FROM DUMMY;
+--Armo el retorno terna a terna 
+/*AND (@lnUnidades + @lnDecenas + @lnCentenas <> 0)*/
+SELECT :lcCadena || :lcRetorno INTO lcRetorno FROM DUMMY;
+SELECT :lnTerna + 1 INTO lnTerna FROM DUMMY;
+END WHILE;
+IF :lnTerna = 1 THEN SELECT 'Cero' INTO lcRetorno FROM DUMMY;
+END IF;
+ImporteLetras := RTRIM(lcRetorno) || ' Con ' || LTRIM(lnFraccion) || '/100';
+END;

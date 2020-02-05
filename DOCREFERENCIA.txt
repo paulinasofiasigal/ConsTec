@@ -1,0 +1,34 @@
+CREATE PROCEDURE SeidorArg_DocReferencia (in DocKey int,in ObjectId int)
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER
+AS
+BEGIN
+
+	IF :ObjectId = 13 THEN
+	
+		SELECT 
+		T0."ObjType",
+		T0."DocEntry",
+		T0."DocNum",
+		T1."LineNum",
+		T1."BaseLine",
+		T1."BaseType",
+		CASE WHEN T1."BaseType" = 15 THEN 'Remito de Venta'
+			 WHEN T1."BaseType" = 17 THEN 'Orden de Venta'
+			 WHEN T1."BaseType" = 23 THEN 'Oferta de Venta' 
+		ELSE 'Sin documento de referencia' END AS "Documento",
+		CASE WHEN T1."BaseType" = 15 THEN T2."Letter" || '-' || T2."PTICode" || '-' || RIGHT(CONCAT(00000000,T2."FolNumFrom"),8) 
+			 WHEN T1."BaseType" = 17 THEN RIGHT(CONCAT(00000000,T3."DocNum"),8) 
+			 WHEN T1."BaseType" = 23 THEN RIGHT(CONCAT(00000000,T4."DocNum"),8)
+		ELSE '0'
+		END AS "NroDocumento"
+		FROM OINV T0
+		INNER JOIN INV1 T1 ON T0."DocEntry" = T1."DocEntry"
+		LEFT OUTER JOIN ODLN T2 ON T1."BaseType" = T2."ObjType" AND T1."BaseEntry" = T2."DocEntry"
+		LEFT OUTER JOIN ORDR T3 ON T1."BaseType" = T3."ObjType" AND T1."BaseEntry" = T3."DocEntry"
+		LEFT OUTER JOIN ORDR T4 ON T1."BaseType" = T4."ObjType" AND T1."BaseEntry" = T4."DocEntry"
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+	
+	END IF;				
+
+END;

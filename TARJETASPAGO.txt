@@ -1,0 +1,43 @@
+CREATE PROCEDURE SeidorArg_TarjetaPagos(in DocKey int,in ObjectId int)
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER
+AS
+BEGIN	
+	
+	IF :ObjectId = 46 THEN	
+		    
+		SELECT
+			T0."DocEntry",
+			T0."DocNum",
+			T0."ObjType",
+			T1."FirstDue",
+			T2."CardName",
+			T1."VoucherNum",
+			T1."CreditCur",
+			T1."CreditSum",
+			T1."NumOfPmnts"
+		FROM OVPM T0
+		INNER JOIN VPM3 T1 ON T0."DocEntry" = T1."DocNum"
+		INNER JOIN OCRC T2 ON T1."CreditCard" = T2."CreditCard"
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+		
+	ELSEIF :ObjectId = 24 THEN
+		
+		SELECT
+			T0."DocEntry",
+			T0."DocNum",
+			T0."ObjType",
+			T1."FirstDue",
+			T2."CardName",
+			T1."VoucherNum",
+			T1."CreditCur",
+			T1."CreditSum",
+			T1."NumOfPmnts"
+		FROM ORCT T0
+		INNER JOIN RCT3 T1 ON T0."DocEntry" = T1."DocNum"
+		INNER JOIN OCRC T2 ON T1."CreditCard" = T2."CreditCard"
+		WHERE T0."DocEntry" = :DocKey AND T0."ObjType" = :ObjectId;
+		
+	END IF;
+	
+END;
